@@ -1,6 +1,6 @@
 {
   "name": "drutiny/sumologic",
-  "type": "project",
+  "type": "library",
   "description": "Integration with SumoLogic",
   "minimum-stability": "dev",
   "require": {
