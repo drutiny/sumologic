@@ -1,0 +1,16 @@
+{
+  "name": "drutiny/sumologic",
+  "type": "project",
+  "description": "Integration with SumoLogic",
+  "minimum-stability": "dev",
+  "require": {
+    "drutiny/drutiny": "2.x-dev",
+    "yriveiro/php-backoff": "^1.1"
+  },
+  "autoload": {
+      "psr-4": {
+          "Drutiny\\SumoLogic\\": "src/",
+          "DrutinyTests\\SumoLogic\\": "tests/src/"
+      }
+  }
+}
