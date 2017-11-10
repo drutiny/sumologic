@@ -2,7 +2,7 @@
 
 namespace Drutiny\SumoLogic;
 
-use GuzzleHttp\Client;
+use GuzzleHttp\Client as HTTPClient;
 use GuzzleHttp\Cookie\CookieJar;
 use DateTime;
 use Yriveiro\Backoff\Backoff;
@@ -19,10 +19,10 @@ class Client {
   /**
    * Constructor.
    */
-  public function __construct($access_id, $access_key, $endpoint = 'https://api.sumologic.com/api/v1')
+  public function __construct($access_id, $access_key, $endpoint = 'https://api.sumologic.com/api/v1/')
   {
     $jar = new CookieJar();
-    $this->client = new Client([
+    $this->client = new HTTPClient([
       'cookies' => $jar,
       'headers' => [
         'Content-Type' => 'application/json',
@@ -60,7 +60,7 @@ class Client {
       throw new \Exception('Unable to decode response: ' . $response->getBody());
     }
 
-    return new RunningQuery($data);
+    return new RunningQuery($data, $this);
   }
 
   /**
@@ -125,8 +125,9 @@ class Client {
    *
    * @see https://help.sumologic.com/APIs/Search-Job-API/About-the-Search-Job-API#Deleting_a_search_job
    */
-  public function deleteQuery($job_id) {
-    return $this->client->request('DELETE', "search/jobs/{$job_id");
+  public function deleteQuery($job_id)
+  {
+    return $this->client->request('DELETE', "search/jobs/$job_id");
   }
 
 }

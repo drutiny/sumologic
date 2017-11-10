@@ -3,6 +3,9 @@
 namespace Drutiny\SumoLogic;
 use Yriveiro\Backoff\Backoff;
 use Yriveiro\Backoff\BackoffException;
+use Symfony\Component\Console\Logger\ConsoleLogger;
+use Symfony\Component\Console\Output\ConsoleOutput;
+use Psr\Log\AbstractLogger;
 
 class RunningQuery {
 
@@ -16,7 +19,7 @@ class RunningQuery {
     $this->job = $job;
     $this->client = $client;
     $this->status = Client::QUERY_JOB_NOT_STARTED;
-    $this->successCallback = function () {};
+    $this->successCallback = function ($records) {};
   }
 
   public function onSuccess(callable $callback)
@@ -25,8 +28,9 @@ class RunningQuery {
     return $this;
   }
 
-  public function wait()
+  public function wait(AbstractLogger $logger)
   {
+
     $attempt = 12;
     $options = Backoff::getDefaultOptions();
     $options['cap'] = 120 * 1000000;
@@ -34,15 +38,16 @@ class RunningQuery {
     $backoff = new Backoff($options);
 
     while ($this->status < Client::QUERY_COMPLETE) {
+      $wait = $backoff->exponential($attempt);
+      usleep($wait);
       $this->status = $this->client->queryStatus($this->job->id);
-      usleep($backoff->exponential($attempt));
+      $logger->info(__CLASS__ . ": Job {$this->job->id} status: {$this->status}");
       $attempt++;
     }
 
     // Query completed, lets acquire the rows.
     $records = $this->client->fetchRecords($this->job->id);
-
-    return $this->successCallback($records);
+    return call_user_func($this->successCallback, $records);
   }
 
   public function __destruct()
