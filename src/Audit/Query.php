@@ -31,7 +31,7 @@ class Query extends ApiEnabledAudit {
         $sandbox->setParameter('records', $records);
       })
       ->wait($sandbox->logger());
-    return TRUE;
+    return self::NOTICE;
   }
 }
 
