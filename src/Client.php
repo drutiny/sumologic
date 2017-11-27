@@ -5,8 +5,6 @@ namespace Drutiny\SumoLogic;
 use GuzzleHttp\Client as HTTPClient;
 use GuzzleHttp\Cookie\CookieJar;
 use DateTime;
-use Yriveiro\Backoff\Backoff;
-use Yriveiro\Backoff\BackoffException;
 
 class Client {
 

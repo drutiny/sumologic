@@ -1,8 +1,6 @@
 <?php
 
 namespace Drutiny\SumoLogic;
-use Yriveiro\Backoff\Backoff;
-use Yriveiro\Backoff\BackoffException;
 use Symfony\Component\Console\Logger\ConsoleLogger;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Psr\Log\AbstractLogger;
@@ -30,16 +28,12 @@ class RunningQuery {
 
   public function wait(AbstractLogger $logger)
   {
-
-    $attempt = 12;
-    $options = Backoff::getDefaultOptions();
-    $options['cap'] = 120 * 1000000;
-    $options['maxAttempts'] = 1000;
-    $backoff = new Backoff($options);
-
+    $attempt = 0;
     while ($this->status < Client::QUERY_COMPLETE) {
-      $wait = $backoff->exponential($attempt);
-      usleep($wait);
+      if ($attempt >= 10) {
+        throw new \Exception("Sumologic query took too long. Quit waiting.");
+      }
+      sleep(3);
       $this->status = $this->client->queryStatus($this->job->id);
       $logger->info(__CLASS__ . ": Job {$this->job->id} status: {$this->status}");
       $attempt++;
