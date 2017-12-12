@@ -30,7 +30,7 @@ class RunningQuery {
   {
     $attempt = 0;
     while ($this->status < Client::QUERY_COMPLETE) {
-      if ($attempt >= 10) {
+      if ($attempt >= 200) {
         throw new \Exception("Sumologic query took too long. Quit waiting.");
       }
       sleep(3);
