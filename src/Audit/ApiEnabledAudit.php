@@ -42,7 +42,18 @@ abstract class ApiEnabledAudit extends Audit {
       ->info(get_class($this) . ': ' . $query);
 
     $client = new Client($this->getAccessId(), $this->getAccessKey());
-    $client->query($query)
+
+    $options = [
+      'from' => (new \DateTime($sandbox->getParameter('from', '-24 hours')))->format(\DateTime::ATOM),
+      'to' => (new \DateTime($sandbox->getParameter('to', 'now')))->format(\DateTime::ATOM),
+      'timeZone' => $sandbox->getParameter('timezone', date_default_timezone_get())
+    ];
+
+    $sandbox
+      ->logger()
+      ->info(get_class($this) . ': ' . print_r($options, TRUE));
+
+    $client->query($query, $options)
       ->onSuccess(function ($records) use ($sandbox) {
         foreach ($records as &$record) {
           if (isset($record['_timeslice'])) {
