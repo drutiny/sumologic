@@ -27,6 +27,8 @@ class NoLogsFound extends ApiEnabledAudit {
       }
     }
 
+    $sandbox->setParameter('count', count($records));
+
     return count($records) === 0;
   }
 }
