@@ -1,5 +1,3 @@
-Command:
-  - Drutiny\SumoLogic\Command\SetupCommand
 CredentialSchema:
   sumologic:
     access_id:
