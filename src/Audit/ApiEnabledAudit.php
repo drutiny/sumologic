@@ -5,34 +5,13 @@ namespace Drutiny\SumoLogic\Audit;
 use Drutiny\SumoLogic\Client;
 use Drutiny\Audit;
 use Drutiny\Sandbox\Sandbox;
+use Drutiny\Credential\Manager;
 
 abstract class ApiEnabledAudit extends Audit {
-  static public function credentialFilepath()
-  {
-    return sprintf('%s/.drutiny/sumologic.json', $_SERVER['HOME']);
-  }
 
-  protected function getAccessId()
+  protected function requireApiCredentials()
   {
-    $data = file_get_contents(self::credentialFilepath());
-    $data = json_decode($data, TRUE);
-    return $data['access_id'];
-  }
-
-  protected function getAccessKey()
-  {
-    $data = file_get_contents(self::credentialFilepath());
-    $data = json_decode($data, TRUE);
-    return $data['access_key'];
-  }
-
-  public function requireApiCredentials()
-  {
-    $creds = self::credentialFilepath();
-    if (!file_exists($creds)) {
-      throw new InvalidArgumentException("Sumologic credentials need to be setup. Please run setup:sumologic.");
-    }
-    return TRUE;
+    return Manager::load('sumologic') ? TRUE : FALSE;
   }
 
   protected function search(Sandbox $sandbox, $query)
@@ -41,7 +20,8 @@ abstract class ApiEnabledAudit extends Audit {
       ->logger()
       ->info(get_class($this) . ': ' . $query);
 
-    $client = new Client($this->getAccessId(), $this->getAccessKey());
+    $creds = Manager::load('sumologic');
+    $client = new Client($creds['access_id'], $creds['access_key']);
 
     $options = [
       'from' => (new \DateTime($sandbox->getParameter('from', '-24 hours')))->format(\DateTime::ATOM),

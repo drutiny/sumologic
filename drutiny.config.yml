@@ -1,2 +1,10 @@
 Command:
   - Drutiny\SumoLogic\Command\SetupCommand
+CredentialSchema:
+  sumologic:
+    access_id:
+      type: string
+      description: Your access ID to connect to the Sumologic API with:
+    access_key:
+      type: string
+      description: Your access key to connect to the Sumologic API with:
