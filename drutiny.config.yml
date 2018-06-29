@@ -6,3 +6,5 @@ CredentialSchema:
     access_key:
       type: string
       description: Your access key to connect to the Sumologic API with:
+Cache:
+  sumologic: Symfony\Component\Cache\Adapter\FilesystemAdapter

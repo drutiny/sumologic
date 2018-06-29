@@ -4,8 +4,9 @@ namespace Drutiny\SumoLogic;
 
 use GuzzleHttp\Client as HTTPClient;
 use GuzzleHttp\Cookie\CookieJar;
-use Drutiny\Cache\LocalFsCacheItemPool;
+use Symfony\Component\Cache\Adapter\FilesystemAdapter as Cache;
 use DateTime;
+use Drutiny\Container;
 
 class Client {
 
@@ -48,9 +49,8 @@ class Client {
     $json = array_merge($json, $options);
     $json['query'] = $search_query;
 
-    $cid = hash('md5', http_build_query($json));
-    $cache = new LocalFsCacheItemPool('sumologic');
-    $item = $cache->getItem($cid);
+    $cache = Container::cache('sumologic');
+    $item = $cache->getItem(hash('md5', http_build_query($json)));
 
     if ($item->isHit()) {
       return new RunningQuery(FALSE, $this, $cache, $item);
