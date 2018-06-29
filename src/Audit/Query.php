@@ -17,7 +17,7 @@ class Query extends ApiEnabledAudit {
 
     $records = $this->search($sandbox, $query);
 
-    if ($globals = $sandbox->getParameter('globals', []) && $row = reset($records)) {
+    if (($globals = $sandbox->getParameter('globals', [])) && $row = reset($records)) {
       foreach ($globals as $key) {
         $sandbox->setParameter($key, $row[$key]);
       }

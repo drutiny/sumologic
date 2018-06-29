@@ -4,6 +4,7 @@ namespace Drutiny\SumoLogic;
 
 use GuzzleHttp\Client as HTTPClient;
 use GuzzleHttp\Cookie\CookieJar;
+use Drutiny\Cache\LocalFsCacheItemPool;
 use DateTime;
 
 class Client {
@@ -46,6 +47,15 @@ class Client {
     ];
     $json = array_merge($json, $options);
     $json['query'] = $search_query;
+
+    $cid = hash('md5', http_build_query($json));
+    $cache = new LocalFsCacheItemPool('sumologic');
+    $item = $cache->getItem($cid);
+
+    if ($item->isHit()) {
+      return new RunningQuery(FALSE, $this, $cache, $item);
+    }
+
     $response = $this->client->request('POST','search/jobs', [
       'json' => $json,
     ]);
@@ -58,7 +68,7 @@ class Client {
       throw new \Exception('Unable to decode response: ' . $response->getBody());
     }
 
-    return new RunningQuery($data, $this);
+    return new RunningQuery($data, $this, $cache, $item);
   }
 
   /**
