@@ -4,7 +4,7 @@
   "description": "Integration with SumoLogic",
   "minimum-stability": "dev",
   "require": {
-    "drutiny/drutiny": "2.1.*@dev || 2.2.*@dev",
+    "drutiny/drutiny": "^2.2.1 || 2.2.*@dev",
     "guzzlehttp/guzzle": "~6.0"
   },
   "autoload": {
