@@ -23,11 +23,19 @@ abstract class ApiEnabledAudit extends Audit {
     $creds = Manager::load('sumologic');
     $client = new Client($creds['access_id'], $creds['access_key']);
 
-    $options = [
-      'from' => (new \DateTime($sandbox->getParameter('from', '-24 hours')))->format(\DateTime::ATOM),
-      'to' => (new \DateTime($sandbox->getParameter('to', 'now')))->format(\DateTime::ATOM),
-      'timeZone' => $sandbox->getParameter('timezone', date_default_timezone_get())
-    ];
+    $options['from']     = $sandbox->getReportingPeriodStart()->format(\DateTime::ATOM);
+    $options['to']       = $sandbox->getReportingPeriodEnd()->format(\DateTime::ATOM);
+    $options['timeZone'] = $sandbox->getReportingPeriodStart()->getTimeZone()->getName();
+
+    if ($time = $sandbox->getParameter('from')) {
+      $options['from'] = date(\DateTime::ATOM, strtotime($time));
+    }
+    if ($time = $sandbox->getParameter('to')) {
+      $options['to'] = date(\DateTime::ATOM, strtotime($time));
+    }
+    if ($tz = $sandbox->getParameter('timezone')) {
+      $options['timeZone'] = $tz;
+    }
 
     $sandbox
       ->logger()
