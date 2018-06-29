@@ -6,7 +6,28 @@ use Drutiny\SumoLogic\Client;
 use Drutiny\Audit;
 use Drutiny\Sandbox\Sandbox;
 use Drutiny\Credential\Manager;
+use Drutiny\Annotation\Param;
 
+/**
+ * @Param(
+ *  name = "from",
+ *  description = "The reporting date to start from. e.g. -24 hours.",
+ *  default = false,
+ *  type = "string"
+ * )
+ * @Param(
+ *  name = "to",
+ *  description = "The reporting date to end on. e.g. now.",
+ *  default = false,
+ *  type = "string"
+ * )
+ * @Param(
+ *  name = "timeZone",
+ *  description = "The timeZone the dates refer to.",
+ *  default = false,
+ *  type = "string"
+ * )
+ */
 abstract class ApiEnabledAudit extends Audit {
 
   protected function requireApiCredentials()
@@ -50,9 +71,7 @@ abstract class ApiEnabledAudit extends Audit {
         }
         $sandbox->setParameter('records', $records);
       })
-      ->wait($sandbox->logger());
+      ->wait();
     return $sandbox->getParameter('records', []);
   }
 }
-
- ?>

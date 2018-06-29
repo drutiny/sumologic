@@ -1,11 +1,11 @@
 <?php
 
 namespace Drutiny\SumoLogic;
-use Symfony\Component\Console\Logger\ConsoleLogger;
-use Symfony\Component\Console\Output\ConsoleOutput;
-use Psr\Log\AbstractLogger;
-use Psr\Cache\CacheItemPoolInterface;
+
+use Drutiny\Container;
 use Psr\Cache\CacheItemInterface;
+use Psr\Cache\CacheItemPoolInterface;
+use Symfony\Component\Console\Output\ConsoleOutput;
 
 class RunningQuery {
 
@@ -32,7 +32,7 @@ class RunningQuery {
     return $this;
   }
 
-  public function wait(AbstractLogger $logger)
+  public function wait()
   {
     if (!$this->item->isHit()) {
       $attempt = 0;
@@ -42,7 +42,7 @@ class RunningQuery {
         }
         sleep(3);
         $this->status = $this->client->queryStatus($this->job->id);
-        $logger->info(__CLASS__ . ": Job {$this->job->id} status: {$this->status}");
+        Container::getLogger()->info(__CLASS__ . ": Job {$this->job->id} status: {$this->status}");
         $attempt++;
       }
 
