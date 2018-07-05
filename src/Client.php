@@ -10,11 +10,26 @@ use Drutiny\Container;
 
 class Client {
 
+  const QUERY_JOB_RECORDS_LIMIT = 10000;
   const QUERY_API_RATE_LIMITED = 1;
   const QUERY_JOB_NOT_STARTED = 2;
   const QUERY_JOB_IN_PROGRESS = 3;
   const QUERY_COMPLETE = 4;
   const QUERY_JOB_CANCELLED = 5;
+
+  private $queryStatusDefinitions = [
+    'NOT STARTED'	=> 'Search job has not been started yet.',
+    'GATHERING RESULTS'	=> 'Search job is still gathering more results, however results might already be available.',
+    'DONE GATHERING RESULTS'	=> 'Search job is done gathering results; the entire specified time range has been covered.',
+    'CANCELED'	=> 'The search job has been canceled.'
+  ];
+
+  private $queryStatusMap = [
+    'NOT STARTED'	=> self::QUERY_JOB_NOT_STARTED,
+    'GATHERING RESULTS'	=> self::QUERY_JOB_IN_PROGRESS,
+    'DONE GATHERING RESULTS'	=> self::QUERY_COMPLETE,
+    'CANCELED'	=> self::QUERY_JOB_CANCELLED,
+  ];
 
   /**
    * Constructor.
@@ -86,16 +101,21 @@ class Client {
     }
     $data = json_decode($response->getBody());
     $state = $data->state;
-    switch ($state) {
-      case "NOT STARTED" :
-        return self::QUERY_JOB_NOT_STARTED;
-      case "GATHERING RESULTS";
-        return self::QUERY_JOB_IN_PROGRESS;
-      case "DONE GATHERING RESULTS";
-        return self::QUERY_COMPLETE;
-      default:
-        return self::QUERY_JOB_CANCELLED;
+
+    if (!isset($this->queryStatusMap[$state])) {
+      Container::getLogger()->error("SumoLogic returned unknown query status: $state.");
+      return self::QUERY_JOB_CANCELLED;
     }
+    return $this->queryStatusMap[$state];
+  }
+
+  public function getStateName($status_code)
+  {
+    $state = array_search($status_code, $this->queryStatusMap, TRUE);
+    if ($state === FALSE) {
+      $state = array_search(self::QUERY_JOB_CANCELLED, $this->queryStatusMap, TRUE);
+    }
+    return $state;
   }
 
   /**
@@ -106,21 +126,34 @@ class Client {
    *
    * @see https://help.sumologic.com/APIs/Search-Job-API/About-the-Search-Job-API#Paging_through_the_records_found_by_a_Search_Job
    */
-  public function fetchRecords($job_id) {
-    $response = $this->client->request('GET', "search/jobs/$job_id/records", [
-      'query' => [
-        'offset' => 0,
-        'limit' => 100
-      ]
-    ]);
-    $data = json_decode($response->getBody());
-    $records = $data->records;
-
+  public function fetchRecords($job_id, $limit = self::QUERY_JOB_RECORDS_LIMIT) {
+    $offset = 0;
+    $query = [
+      'limit' => min(self::QUERY_JOB_RECORDS_LIMIT, $limit)
+    ];
     $rows = [];
 
-    foreach ($records as $key => $record) {
-      $rows[] = (array) $record->map;
+    do {
+      // Throttle the batch query after the first record set has been fetched.
+      if ($offset) {
+        sleep(1);
+      }
+      $query['offset'] = $offset;
+
+      $response = $this->client->request('GET', "search/jobs/$job_id/records", [
+        'query' => $query
+      ]);
+
+      $data = json_decode($response->getBody());
+      $records = $data->records;
+
+      foreach ($records as $key => $record) {
+        $rows[] = (array) $record->map;
+      }
+
+      $offset += $query['limit'];
     }
+    while ((count($records) == $query['limit']) && (count($rows) < $limit));
 
     return $rows;
   }

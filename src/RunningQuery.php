@@ -9,6 +9,8 @@ use Symfony\Component\Console\Output\ConsoleOutput;
 
 class RunningQuery {
 
+  const MAX_JOB_WAIT = 200;
+
   protected $job;
   protected $client;
   protected $status;
@@ -32,17 +34,18 @@ class RunningQuery {
     return $this;
   }
 
-  public function wait()
+  public function wait($max_wait = self::MAX_JOB_WAIT)
   {
     if (!$this->item->isHit()) {
       $attempt = 0;
       while ($this->status < Client::QUERY_COMPLETE) {
-        if ($attempt >= 200) {
-          throw new \Exception("Sumologic query took too long. Quit waiting.");
+        if ($attempt >= $max_wait) {
+          Container::getLogger()->error("Sumologic query took too long. Quit waiting.");
+          break;
         }
         sleep(3);
         $this->status = $this->client->queryStatus($this->job->id);
-        Container::getLogger()->info(__CLASS__ . ": Job {$this->job->id} status: {$this->status}");
+        Container::getLogger()->info("Wating for Sumologic job {$this->job->id} to complete. Poll $attempt/$max_wait Response: " . $this->client->getStateName($this->status));
         $attempt++;
       }
 
