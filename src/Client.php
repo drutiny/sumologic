@@ -2,7 +2,7 @@
 
 namespace Drutiny\SumoLogic;
 
-use GuzzleHttp\Client as HTTPClient;
+use Drutiny\Http\Client as HTTPClient;
 use GuzzleHttp\Cookie\CookieJar;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter as Cache;
 use DateTime;
