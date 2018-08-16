@@ -39,7 +39,7 @@ abstract class ApiEnabledAudit extends Audit {
   {
     $sandbox
       ->logger()
-      ->info(get_class($this) . ': ' . $query);
+      ->debug(get_class($this) . ': ' . $query);
 
     $creds = Manager::load('sumologic');
     $client = new Client($creds['access_id'], $creds['access_key']);
@@ -75,7 +75,7 @@ abstract class ApiEnabledAudit extends Audit {
 
     $sandbox
       ->logger()
-      ->info(get_class($this) . ': ' . print_r($options, TRUE));
+      ->debug(get_class($this) . ': ' . print_r($options, TRUE));
 
     $client->query($query, $options)
       ->onSuccess(function ($records) use ($sandbox) {
