@@ -46,7 +46,22 @@ abstract class ApiEnabledAudit extends Audit {
 
     $options['from']     = $sandbox->getReportingPeriodStart()->format(\DateTime::ATOM);
     $options['to']       = $sandbox->getReportingPeriodEnd()->format(\DateTime::ATOM);
-    $options['timeZone'] = $sandbox->getReportingPeriodStart()->getTimeZone()->getName();
+
+    $tz = $sandbox->getReportingPeriodStart()->getTimeZone()->getName();
+
+    // SumoLogic requires a formal timezone. E.g. Pacific/Auckland.
+    // If the timezone provided is in a short format (e.g. EST, NZST)
+    // then it needs to be converted into the format sumologic supports.
+    if (strpos('/', $tz)) {
+      $options['timeZone'] = $tz;
+    }
+    else {
+      $codes = \DateTimeZone::listAbbreviations();
+      $tz = strtolower($tz);
+      if (isset($codes[$tz])) {
+        $options['timeZone'] = $codes[$tz][0]['timezone_id'];
+      }
+    }
 
     if ($time = $sandbox->getParameter('from')) {
       $options['from'] = date(\DateTime::ATOM, strtotime($time));
