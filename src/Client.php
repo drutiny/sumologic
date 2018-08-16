@@ -42,7 +42,7 @@ class Client {
       'headers' => [
         'Content-Type' => 'application/json',
         'Accept'       => 'application/json',
-        'User-Agent'   => 'site-efficiency/1.0',
+        'User-Agent'   => 'Drutiny Sumologic Driver (https://github.com/drutiny/sumologic)',
       ],
       'allow_redirects' => FALSE,
       'connect_timeout' => 5,
