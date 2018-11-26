@@ -42,7 +42,10 @@ abstract class ApiEnabledAudit extends Audit {
       ->debug(get_class($this) . ': ' . $query);
 
     $creds = Manager::load('sumologic');
-    $client = new Client($creds['access_id'], $creds['access_key']);
+    if (!isset($creds['endpoint']) || empty($creds['endpoint'])) {
+      $creds['endpoint'] = 'https://api.sumologic.com/api/v1/';
+    }
+    $client = new Client($creds['access_id'], $creds['access_key'], $creds['endpoint']);
 
     $options['from']     = $sandbox->getReportingPeriodStart()->format(\DateTime::ATOM);
     $options['to']       = $sandbox->getReportingPeriodEnd()->format(\DateTime::ATOM);
