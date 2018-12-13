@@ -37,15 +37,36 @@ abstract class ApiEnabledAudit extends Audit {
 
   protected function search(Sandbox $sandbox, $query)
   {
+    $steps = $sandbox->getReportingPeriodSteps();
+    switch (TRUE) {
+      case $steps >= 86400:
+        $timeslice = round($steps / 86400) . 'd';
+        break;
+
+      case $steps >= 3600:
+        $timeslice = round($steps / 3600) . 'h';
+        break;
+
+      case $steps > 60:
+        $timeslice = round($steps / 60) . 'm';
+        break;
+
+      default:
+        $timeslice = $steps . 's';
+        break;
+    }
+
+    $sandbox->setParameter('sumologic_timeslice', $timeslice);
+    $query = strtr($query, [
+      '@_timeslice' => $timeslice
+    ]);
+
     $sandbox
       ->logger()
       ->debug(get_class($this) . ': ' . $query);
 
     $creds = Manager::load('sumologic');
-    if (!isset($creds['endpoint']) || empty($creds['endpoint'])) {
-      $creds['endpoint'] = 'https://api.sumologic.com/api/v1/';
-    }
-    $client = new Client($creds['access_id'], $creds['access_key'], $creds['endpoint']);
+    $client = new Client($creds['access_id'], $creds['access_key']);
 
     $options['from']     = $sandbox->getReportingPeriodStart()->format(\DateTime::ATOM);
     $options['to']       = $sandbox->getReportingPeriodEnd()->format(\DateTime::ATOM);
