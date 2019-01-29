@@ -45,7 +45,7 @@ class RunningQuery {
         }
         sleep(3);
         $this->status = $this->client->queryStatus($this->job->id);
-        Container::getLogger()->info("Wating for Sumologic job {$this->job->id} to complete. Poll $attempt/$max_wait Response: " . $this->client->getStateName($this->status));
+        Container::getLogger()->info("Waiting for Sumologic job {$this->job->id} to complete. Poll $attempt/$max_wait Response: " . $this->client->getStateName($this->status));
         $attempt++;
       }
 
