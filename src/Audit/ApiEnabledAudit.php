@@ -37,6 +37,10 @@ abstract class ApiEnabledAudit extends Audit {
 
   protected function search(Sandbox $sandbox, $query)
   {
+    // Inject a query comment that uniquely identifies this query
+    // for performance monitoring purposes.
+    $query = "// Drutiny:" . $sandbox->getPolicy()->get('name') . "\n" . $query;
+    
     $steps = $sandbox->getReportingPeriodSteps();
     switch (TRUE) {
       case $steps >= 86400:
