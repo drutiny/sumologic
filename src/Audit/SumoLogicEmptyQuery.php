@@ -1,6 +1,6 @@
 <?php
 
-namespace Drutiny\Acquia\CS\Audit;
+namespace Drutiny\SumoLogic\Audit;
 
 use Drutiny\Annotation\Param;
 use Drutiny\Annotation\Token;
