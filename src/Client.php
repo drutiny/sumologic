@@ -2,15 +2,19 @@
 
 namespace Drutiny\SumoLogic;
 
-use Drutiny\Http\Client as HTTPClient;
-use GuzzleHttp\Cookie\CookieJar;
-use Symfony\Component\Cache\Adapter\FilesystemAdapter as Cache;
 use DateTime;
-use Drutiny\Container;
+use Drutiny\Http\Client as HTTPClient;
+use Drutiny\SumoLogic\Plugin\SumoLogicPlugin;
+use GuzzleHttp\Cookie\CookieJar;
+use Psr\Log\LoggerInterface;
+use Symfony\Component\Cache\Adapter\FilesystemAdapter as Cache;
+use Symfony\Contracts\Cache\CacheInterface;
+use Symfony\Contracts\Cache\ItemInterface;
 
 class Client {
 
   const QUERY_JOB_RECORDS_LIMIT = 10000;
+  const MAX_JOB_WAIT = 200;
   const QUERY_API_RATE_LIMITED = 1;
   const QUERY_JOB_NOT_STARTED = 2;
   const QUERY_JOB_IN_PROGRESS = 3;
@@ -32,14 +36,20 @@ class Client {
     'CANCELED'	=> self::QUERY_JOB_CANCELLED,
   ];
 
+  protected $client;
+  protected $logger;
+  protected $cache;
+
   /**
    * Constructor.
    */
-  public function __construct($access_id, $access_key, $endpoint = 'https://api.sumologic.com/api/v1/')
+  public function __construct(SumoLogicPlugin $plugin, HTTPClient $http, LoggerInterface $logger, CacheInterface $cache)
   {
-    $jar = new CookieJar();
-    $this->client = new HTTPClient([
-      'cookies' => $jar,
+    $this->logger = $logger;
+    $this->cache = $cache;
+    $creds = $plugin->load();
+    $this->client = $http->create([
+      'cookies' => new CookieJar(),
       'headers' => [
         'Content-Type' => 'application/json',
         'Accept'       => 'application/json',
@@ -49,13 +59,13 @@ class Client {
       'connect_timeout' => 5,
       'timeout' => 5,
       'auth' => [
-        $access_id, $access_key
+        $creds['access_id'], $creds['access_key']
       ],
-      'base_uri' => $endpoint
+      'base_uri' => $creds['endpoint']
     ]);
   }
 
-  public function query($search_query, $options = [])
+  public function query($search_query, $options = [], callable $callback = null)
   {
     $json = [
       'from' => (new DateTime('-24 hours'))->format(DateTime::ATOM),
@@ -65,26 +75,37 @@ class Client {
     $json = array_merge($json, $options);
     $json['query'] = $search_query;
 
-    $cache = Container::cache('sumologic');
-    $item = $cache->getItem(hash('md5', http_build_query($json)));
+    $cid = hash('md5', http_build_query($json));
 
-    if ($item->isHit()) {
-      return new RunningQuery(FALSE, $this, $cache, $item);
-    }
+    $callable = $callback ?? function ($records) { return $records; };
 
-    $response = $this->client->request('POST','search/jobs', [
-      'json' => $json,
-    ]);
-    $code = $response->getStatusCode();
+    return $callable($this->cache->get($cid, function (ItemInterface $item) use ($json) {
+      $response = $this->client->request('POST','search/jobs', [
+        'json' => $json,
+      ]);
+      $code = $response->getStatusCode();
 
-    if ($code !== 202) {
-      throw new \RuntimeException('Error getting data from Sumologic, error was HTTP ' . $code . ' - ' . $response->getBody() . '.');
-    }
-    if (!$data = json_decode($response->getBody())) {
-      throw new \Exception('Unable to decode response: ' . $response->getBody());
-    }
+      if ($code !== 202) {
+        throw new \RuntimeException('Error getting data from Sumologic, error was HTTP ' . $code . ' - ' . $response->getBody() . '.');
+      }
+      if (!$job = json_decode($response->getBody())) {
+        throw new \Exception('Unable to decode response: ' . $response->getBody());
+      }
+      $attempt = 0;
 
-    return new RunningQuery($data, $this, $cache, $item);
+      do {
+        if ($attempt >= static::MAX_JOB_WAIT) {
+          $this->logger->error("Sumologic query took too long. Quit waiting.");
+          break;
+        }
+        sleep(3);
+        $status = $this->queryStatus($job->id);
+        $this->logger->info("Waiting for Sumologic job {$job->id} to complete. Poll $attempt/".static::MAX_JOB_WAIT." Response: " . $this->getStateName($status));
+        $attempt++;
+      }
+      while ($status < Client::QUERY_COMPLETE);
+      return $this->fetchRecords($job->id);
+    }));
   }
 
   /**
@@ -104,7 +125,7 @@ class Client {
     $state = $data->state;
 
     if (!isset($this->queryStatusMap[$state])) {
-      Container::getLogger()->error("SumoLogic returned unknown query status: $state.");
+      $this->logger->error("SumoLogic returned unknown query status: $state.");
       return self::QUERY_JOB_CANCELLED;
     }
     return $this->queryStatusMap[$state];

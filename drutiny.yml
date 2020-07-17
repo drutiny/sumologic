@@ -1,0 +1,15 @@
+parameters:
+    acquia.api.base_uri: https://cskb.acquia.com/
+
+services:
+    _defaults:
+        autowire: true      # Automatically injects dependencies in your services.
+        autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
+        public: true
+
+    sumologic.api:
+        class: 'Drutiny\SumoLogic\Client'
+
+    Drutiny\SumoLogic\Plugin\SumoLogicPlugin:
+        tags: [plugin]
+        shared: false
