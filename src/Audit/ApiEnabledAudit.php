@@ -101,7 +101,7 @@ abstract class ApiEnabledAudit extends Audit
         $sandbox
             ->logger()
             ->debug(get_class($this) . ': ' . print_r($options, true));
-
+        $this->progressBar->setMessage("Waiting for SumoLogic query to return...");
         $client->query($query, $options,
                 function ($records) {
                     foreach ($records as &$record) {

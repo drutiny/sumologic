@@ -1,5 +1,6 @@
 parameters:
-    acquia.api.base_uri: https://cskb.acquia.com/
+    sumologic.max_job_wait: 200
+    sumologic.poll_wait: 5
 
 services:
     _defaults:

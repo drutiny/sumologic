@@ -8,13 +8,14 @@ use Drutiny\SumoLogic\Plugin\SumoLogicPlugin;
 use GuzzleHttp\Cookie\CookieJar;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter as Cache;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Component\Console\Helper\ProgressBar;
 
 class Client {
 
   const QUERY_JOB_RECORDS_LIMIT = 10000;
-  const MAX_JOB_WAIT = 200;
   const QUERY_API_RATE_LIMITED = 1;
   const QUERY_JOB_NOT_STARTED = 2;
   const QUERY_JOB_IN_PROGRESS = 3;
@@ -36,17 +37,31 @@ class Client {
     'CANCELED'	=> self::QUERY_JOB_CANCELLED,
   ];
 
+  protected $maxJobWait = 200;
+  protected $pollWait = 5;
+
   protected $client;
   protected $logger;
   protected $cache;
+  protected $progressBar;
 
   /**
    * Constructor.
    */
-  public function __construct(SumoLogicPlugin $plugin, HTTPClient $http, LoggerInterface $logger, CacheInterface $cache)
+  public function __construct(
+    SumoLogicPlugin $plugin,
+    HTTPClient $http,
+    LoggerInterface $logger,
+    CacheInterface $cache,
+    ContainerInterface $container,
+    ProgressBar $progressBar
+    )
   {
+    $this->progressBar = $progressBar;
     $this->logger = $logger;
     $this->cache = $cache;
+    $this->maxJobWait = $container->getParameter('sumologic.max_job_wait');
+    $this->pollWait = $container->getParameter('sumologic.poll_wait');
     $creds = $plugin->load();
     $this->client = $http->create([
       'cookies' => new CookieJar(),
@@ -92,18 +107,23 @@ class Client {
         throw new \Exception('Unable to decode response: ' . $response->getBody());
       }
       $attempt = 0;
+      $this->progressBar->setMaxSteps($this->progressBar->getMaxSteps() + $this->maxJobWait);
 
       do {
-        if ($attempt >= static::MAX_JOB_WAIT) {
+        if ($attempt >= $this->maxJobWait) {
           $this->logger->error("Sumologic query took too long. Quit waiting.");
           break;
         }
-        sleep(3);
+        sleep($this->pollWait);
         $status = $this->queryStatus($job->id);
-        $this->logger->info("Waiting for Sumologic job {$job->id} to complete. Poll $attempt/".static::MAX_JOB_WAIT." Response: " . $this->getStateName($status));
+        $this->logger->info("Waiting for Sumologic job {$job->id} to complete. Poll $attempt/".$this->maxJobWait." Response: " . $this->getStateName($status));
         $attempt++;
+        $this->progressBar->advance();
       }
       while ($status < Client::QUERY_COMPLETE);
+
+      $this->progressBar->advance($this->maxJobWait - $attempt);
+
       return $this->fetchRecords($job->id);
     }));
   }
