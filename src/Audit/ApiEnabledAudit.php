@@ -69,10 +69,10 @@ abstract class ApiEnabledAudit extends Audit
 
         $client = $this->container->get('sumologic.api');
 
-        $options['from']     = $sandbox->getReportingPeriodStart()->format(\DateTime::ATOM);
-        $options['to']       = $sandbox->getReportingPeriodEnd()->format(\DateTime::ATOM);
+        $options['from']     = $this->getParameter('reporting_period_start')->format(\DateTime::ATOM);
+        $options['to']       = $this->getParameter('reporting_period_end')->format(\DateTime::ATOM);
 
-        $tz = $sandbox->getReportingPeriodStart()->getTimeZone()->getName();
+        $tz = $this->getParameter('reporting_period_start')->getTimeZone()->getName();
 
         // SumoLogic requires a formal timezone. E.g. Pacific/Auckland.
         // If the timezone provided is in a short format (e.g. EST, NZST)
@@ -98,10 +98,9 @@ abstract class ApiEnabledAudit extends Audit
             $options['timeZone'] = $tz;
         }
 
-        $sandbox
-            ->logger()
-            ->debug(get_class($this) . ': ' . print_r($options, true));
-        $this->progressBar->setMessage("Waiting for SumoLogic query to return...");
+
+        $this->logger->debug(get_class($this) . ': ' . print_r($options, true));
+        $this->logger->notice("Waiting for SumoLogic query to return...");
         $client->query($query, $options,
                 function ($records) {
                     foreach ($records as &$record) {
