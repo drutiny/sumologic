@@ -11,7 +11,7 @@ use Drutiny\Sandbox\Sandbox;
  */
 abstract class ApiEnabledAudit extends Audit
 {
-    public function configure()
+    public function configure():void
     {
         $this->addParameter(
             'from',
