@@ -65,7 +65,7 @@ abstract class ApiEnabledAudit extends Audit
             ]
         );
 
-        $this->getLogger()->debug(get_class($this) . ': ' . $query);
+        $this->logger->debug(get_class($this) . ': ' . $query);
 
         $client = $this->container->get('sumologic.api');
 
