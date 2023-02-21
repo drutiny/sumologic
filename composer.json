@@ -4,7 +4,7 @@
   "description": "Integration with SumoLogic",
   "minimum-stability": "dev",
   "require": {
-    "drutiny/drutiny": "^3.1.x-dev"
+    "drutiny/drutiny": "^3.5.x-dev"
   },
   "autoload": {
       "psr-4": {
