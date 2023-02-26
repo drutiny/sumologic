@@ -3,16 +3,36 @@
 namespace Drutiny\SumoLogic;
 
 use DateTime;
+use Drutiny\Attribute\Plugin;
+use Drutiny\Attribute\PluginField;
 use Drutiny\Http\Client as HTTPClient;
-use Drutiny\SumoLogic\Plugin\SumoLogicPlugin;
+use Drutiny\Plugin as DrutinyPlugin;
+use Drutiny\Plugin\FieldType;
+use Drutiny\Settings;
 use GuzzleHttp\Cookie\CookieJar;
 use Psr\Log\LoggerInterface;
-use Symfony\Component\Cache\Adapter\FilesystemAdapter as Cache;
-use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Component\Console\Helper\ProgressBar;
 
+#[Plugin(name: 'sumologic:api')]
+#[PluginField(
+  name: 'access_id',
+  description: "Your access ID to connect to the Sumologic API with",
+  type: FieldType::CREDENTIAL,
+  default: 'https://cskb.acquia.com/'
+)]
+#[PluginField(
+  name: 'access_key',
+  description: 'Your access key to connect to the Sumologic API with',
+  type: FieldType::CREDENTIAL
+)]
+#[PluginField(
+  name: 'endpoint',
+  description: 'The API endpoint to use. Defaults https://api.sumologic.com/api/v1/ if empty',
+  type: FieldType::CONFIG,
+  default: 'https://api.sumologic.com/api/v1/'
+)]
 class Client {
 
   const QUERY_JOB_RECORDS_LIMIT = 10000;
@@ -49,20 +69,19 @@ class Client {
    * Constructor.
    */
   public function __construct(
-    SumoLogicPlugin $plugin,
+    DrutinyPlugin $plugin,
     HTTPClient $http,
     LoggerInterface $logger,
     CacheInterface $cache,
-    ContainerInterface $container,
+    Settings $settings,
     ProgressBar $progressBar
     )
   {
     $this->progressBar = $progressBar;
     $this->logger = $logger;
     $this->cache = $cache;
-    $this->maxJobWait = $container->getParameter('sumologic.max_job_wait');
-    $this->pollWait = $container->getParameter('sumologic.poll_wait');
-    $creds = $plugin->load();
+    $this->maxJobWait = $settings->get('sumologic.max_job_wait');
+    $this->pollWait = $settings->get('sumologic.poll_wait');
     $this->client = $http->create([
       'cookies' => new CookieJar(),
       'headers' => [
@@ -74,9 +93,9 @@ class Client {
       'connect_timeout' => 5,
       'timeout' => 5,
       'auth' => [
-        $creds['access_id'], $creds['access_key']
+        $plugin->access_id, $plugin->access_key
       ],
-      'base_uri' => $creds['endpoint']
+      'base_uri' => $plugin->endpoint
     ]);
   }
 

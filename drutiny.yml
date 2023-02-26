@@ -10,7 +10,3 @@ services:
 
     sumologic.api:
         class: 'Drutiny\SumoLogic\Client'
-
-    Drutiny\SumoLogic\Plugin\SumoLogicPlugin:
-        tags: [plugin]
-        shared: false
