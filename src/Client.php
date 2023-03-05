@@ -19,8 +19,7 @@ use Symfony\Component\Console\Helper\ProgressBar;
 #[PluginField(
   name: 'access_id',
   description: "Your access ID to connect to the Sumologic API with",
-  type: FieldType::CREDENTIAL,
-  default: 'https://cskb.acquia.com/'
+  type: FieldType::CREDENTIAL
 )]
 #[PluginField(
   name: 'access_key',
