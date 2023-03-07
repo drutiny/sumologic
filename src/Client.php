@@ -141,7 +141,7 @@ class Client {
       while ($status < Client::QUERY_COMPLETE);
 
       $this->progressBar->advance($this->maxJobWait - $attempt);
-
+      $item->expiresAfter(3600);
       return $this->fetchRecords($job->id);
     }));
   }

@@ -8,5 +8,8 @@ services:
         autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
         public: true
 
+    Drutiny\SumoLogic\Client:
+
+    # Legacy access
     sumologic.api:
         class: 'Drutiny\SumoLogic\Client'

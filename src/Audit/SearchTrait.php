@@ -1,0 +1,115 @@
+<?php
+
+namespace Drutiny\SumoLogic\Audit;
+
+use Drutiny\Audit\AuditInterface;
+use Drutiny\Sandbox\Sandbox;
+
+/**
+ *
+ */
+trait SearchTrait
+{
+    public function configure():void
+    {
+        $this->addParameter(
+            'from',
+            AuditInterface::PARAMETER_OPTIONAL,
+            'The reporting date to start from. e.g. -24 hours.',
+            false,
+        );
+        $this->addParameter(
+            'to',
+            AuditInterface::PARAMETER_OPTIONAL,
+            'The reporting date to end on. e.g. now.',
+            false
+        );
+        $this->addParameter(
+            'timezone',
+            AuditInterface::PARAMETER_OPTIONAL,
+            'The timeZone the dates refer to.',
+            false,
+        );
+    }
+
+    protected function search(Sandbox $sandbox, $query)
+    {
+        // Inject a query comment that uniquely identifies this query
+        // for performance monitoring purposes.
+        $query = "// Drutiny:\n"  . $query;
+
+        $steps = $sandbox->getReportingPeriodSteps();
+        switch (true) {
+        case $steps >= 86400:
+            $timeslice = round($steps / 86400) . 'd';
+            break;
+
+        case $steps >= 3600:
+            $timeslice = round($steps / 3600) . 'h';
+            break;
+
+        case $steps > 60:
+            $timeslice = round($steps / 60) . 'm';
+            break;
+
+        default:
+            $timeslice = $steps . 's';
+            break;
+        }
+
+        $this->set('sumologic_timeslice', $timeslice);
+        $query = strtr(
+            $query, [
+            '@_timeslice' => $timeslice
+            ]
+        );
+
+        $this->logger->debug(get_class($this) . ': ' . $query);
+
+        $client = $this->container->get('sumologic.api');
+
+        $options['from']     = $this->getParameter('reporting_period_start')->format(\DateTime::ATOM);
+        $options['to']       = $this->getParameter('reporting_period_end')->format(\DateTime::ATOM);
+
+        $tz = $this->getParameter('reporting_period_start')->getTimeZone()->getName();
+
+        // SumoLogic requires a formal timezone. E.g. Pacific/Auckland.
+        // If the timezone provided is in a short format (e.g. EST, NZST)
+        // then it needs to be converted into the format sumologic supports.
+        if (strpos('/', $tz)) {
+            $options['timeZone'] = $tz;
+        }
+        else {
+            $codes = \DateTimeZone::listAbbreviations();
+            $tz = strtolower($tz);
+            if (isset($codes[$tz])) {
+                $options['timeZone'] = $codes[$tz][0]['timezone_id'];
+            }
+        }
+
+        if ($time = $this->getParameter('from')) {
+            $options['from'] = date(\DateTime::ATOM, strtotime($time));
+        }
+        if ($time = $this->getParameter('to')) {
+            $options['to'] = date(\DateTime::ATOM, strtotime($time));
+        }
+        if ($tz = $this->getParameter('timezone')) {
+            $options['timeZone'] = $tz;
+        }
+
+
+        $this->logger->debug(get_class($this) . ': ' . print_r($options, true));
+        $this->logger->notice("Waiting for SumoLogic query to return...");
+        $client->query($query, $options,
+                function ($records) {
+                    foreach ($records as &$record) {
+                        if (isset($record['_timeslice'])) {
+                            $record['_timeslice'] = date('Y-m-d H:i:s', $record['_timeslice']/1000);
+                        }
+                    }
+                    $this->set('records', $records);
+                }
+            );
+        return $this->get('records', []);
+    }
+}

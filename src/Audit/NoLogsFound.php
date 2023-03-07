@@ -22,7 +22,7 @@ class NoLogsFound extends ApiEnabledAudit
 
         $records = $this->search($sandbox, $query);
 
-        if ($globals = $this->getParameter('globals', []) && $row = reset($records)) {
+        if (($globals = $this->getParameter('globals', [])) && $row = reset($records)) {
             foreach ($globals as $key) {
                 $this->set($key, $row[$key]);
             }
