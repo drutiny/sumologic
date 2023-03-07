@@ -9,6 +9,7 @@ use Drutiny\Http\Client as HTTPClient;
 use Drutiny\Plugin as DrutinyPlugin;
 use Drutiny\Plugin\FieldType;
 use Drutiny\Settings;
+use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
 use Psr\Log\LoggerInterface;
 use Symfony\Contracts\Cache\CacheInterface;
@@ -35,34 +36,10 @@ use Symfony\Component\Console\Helper\ProgressBar;
 class Client {
 
   const QUERY_JOB_RECORDS_LIMIT = 10000;
-  const QUERY_API_RATE_LIMITED = 1;
-  const QUERY_JOB_NOT_STARTED = 2;
-  const QUERY_JOB_IN_PROGRESS = 3;
-  const QUERY_COMPLETE = 4;
-  const QUERY_JOB_CANCELLED = 5;
 
-  private $queryStatusDefinitions = [
-    'NOT STARTED'	=> 'Search job has not been started yet.',
-    'GATHERING RESULTS'	=> 'Search job is still gathering more results, however results might already be available.',
-    'DONE GATHERING RESULTS'	=> 'Search job is done gathering results; the entire specified time range has been covered.',
-    'CANCELED'	=> 'The search job has been canceled.'
-  ];
-
-  private $queryStatusMap = [
-    'NOT STARTED'	=> self::QUERY_JOB_NOT_STARTED,
-    'GATHERING RESULTS'	=> self::QUERY_JOB_IN_PROGRESS,
-    'GATHERING RESULTS FROM SUBQUERIES' => self::QUERY_JOB_IN_PROGRESS,
-    'DONE GATHERING RESULTS'	=> self::QUERY_COMPLETE,
-    'CANCELED'	=> self::QUERY_JOB_CANCELLED,
-  ];
-
-  protected $maxJobWait = 200;
-  protected $pollWait = 5;
-
-  protected $client;
-  protected $logger;
-  protected $cache;
-  protected $progressBar;
+  protected int $maxJobWait = 200;
+  protected int $pollWait = 5;
+  protected ClientInterface $client;
 
   /**
    * Constructor.
@@ -70,15 +47,12 @@ class Client {
   public function __construct(
     DrutinyPlugin $plugin,
     HTTPClient $http,
-    LoggerInterface $logger,
-    CacheInterface $cache,
+    protected LoggerInterface $logger,
     Settings $settings,
-    ProgressBar $progressBar
+    protected ProgressBar $progressBar,
+    protected CacheInterface $cache
     )
   {
-    $this->progressBar = $progressBar;
-    $this->logger = $logger;
-    $this->cache = $cache;
     $this->maxJobWait = $settings->get('sumologic.max_job_wait');
     $this->pollWait = $settings->get('sumologic.poll_wait');
     $this->client = $http->create([
@@ -98,7 +72,7 @@ class Client {
     ]);
   }
 
-  public function query($search_query, $options = [], callable $callback = null)
+  public function query(string $search_query, array $options = [], callable $callback = null):array
   {
     $json = [
       'from' => (new DateTime('-24 hours'))->format(DateTime::ATOM),
@@ -110,9 +84,9 @@ class Client {
 
     $cid = hash('md5', http_build_query($json));
 
-    $callable = $callback ?? function ($records) { return $records; };
+    $callback ??= fn ($r) => $r;
 
-    return $callable($this->cache->get($cid, function (ItemInterface $item) use ($json) {
+    return $callback($this->cache->get($cid, function (ItemInterface $item) use ($json) {
       $response = $this->client->request('POST','search/jobs', [
         'json' => $json,
       ]);
@@ -127,22 +101,30 @@ class Client {
       $attempt = 0;
       $this->progressBar->setMaxSteps($this->progressBar->getMaxSteps() + $this->maxJobWait);
 
+      $item->expiresAfter(3600);
       do {
         if ($attempt >= $this->maxJobWait) {
           $this->logger->error("Sumologic query took too long. Quit waiting.");
+          $item->expiresAfter(0);
           break;
         }
         sleep($this->pollWait);
         $status = $this->queryStatus($job->id);
-        $this->logger->info("Waiting for Sumologic job {$job->id} to complete. Poll $attempt/".$this->maxJobWait." Response: " . $this->getStateName($status));
+        $this->logger->notice("Waiting for Sumologic job {$job->id} to complete. Poll $attempt/".$this->maxJobWait." Response: " . $status->getDefinition());
         $attempt++;
         $this->progressBar->advance();
       }
-      while ($status < Client::QUERY_COMPLETE);
+      while (!$status->isComplete());
 
       $this->progressBar->advance($this->maxJobWait - $attempt);
-      $item->expiresAfter(3600);
-      return $this->fetchRecords($job->id);
+      $records = $this->fetchRecords($job->id);
+
+      // Query timed out so lets delete it so it doesn't continue.
+      if (!$status->isComplete()) {
+        $this->deleteQuery($job->id);
+      }
+
+      return $records;
     }));
   }
 
@@ -152,30 +134,16 @@ class Client {
    *
    * @see https://help.sumologic.com/APIs/Search-Job-API/About-the-Search-Job-API#Getting_the_current_Search_Job_status
    */
-  public function queryStatus($job_id) {
+  public function queryStatus($job_id):JobStatus {
     $response = $this->client->request('GET', "search/jobs/$job_id", [
       'http_errors' => false
     ]);
     if ($response->getStatusCode() === 429) {
-      return self::QUERY_API_RATE_LIMITED;
+      return JobStatus::API_RATE_LIMITED;
     }
     $data = json_decode($response->getBody());
-    $state = $data->state;
 
-    if (!isset($this->queryStatusMap[$state])) {
-      $this->logger->error("SumoLogic returned unknown query status: $state.");
-      return self::QUERY_JOB_CANCELLED;
-    }
-    return $this->queryStatusMap[$state];
-  }
-
-  public function getStateName($status_code)
-  {
-    $state = array_search($status_code, $this->queryStatusMap, TRUE);
-    if ($state === FALSE) {
-      $state = array_search(self::QUERY_JOB_CANCELLED, $this->queryStatusMap, TRUE);
-    }
-    return $state;
+    return JobStatus::map($data->state);
   }
 
   /**
@@ -186,7 +154,8 @@ class Client {
    *
    * @see https://help.sumologic.com/APIs/Search-Job-API/About-the-Search-Job-API#Paging_through_the_records_found_by_a_Search_Job
    */
-  public function fetchRecords($job_id, $limit = self::QUERY_JOB_RECORDS_LIMIT) {
+  public function fetchRecords($job_id, $limit = self::QUERY_JOB_RECORDS_LIMIT):array
+  {
     $offset = 0;
     $query = [
       'limit' => min(self::QUERY_JOB_RECORDS_LIMIT, $limit)
@@ -230,5 +199,4 @@ class Client {
   {
     return $this->client->request('DELETE', "search/jobs/$job_id");
   }
-
 }
