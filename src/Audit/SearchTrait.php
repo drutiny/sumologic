@@ -100,7 +100,7 @@ trait SearchTrait
 
         $this->logger->debug(get_class($this) . ': ' . print_r($options, true));
         $this->logger->notice("Waiting for SumoLogic query to return...");
-        $client->query($query, $options,
+        return $client->query($query, $options,
                 function ($records) {
                     foreach ($records as &$record) {
                         if (isset($record['_timeslice'])) {
@@ -108,8 +108,8 @@ trait SearchTrait
                         }
                     }
                     $this->set('records', $records);
+                    return $records;
                 }
             );
-        return $this->get('records', []);
     }
 }

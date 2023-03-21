@@ -73,9 +73,11 @@ class LogMatchPolicyRouter extends AbstractAnalysis
      */
     public function prepare(Policy $policy):void
     {
-        $this->queries[$policy->getParameter('query')][$policy->name] = $policy->getParameter('search_phrase');
+        $this->queries[$policy->parameters->get('query')][$policy->name] = $policy->parameters->get('search_phrase');
         // Marker so we know what the policy is.
-        $policy->addParameter('_policy_name', $policy->name);
+        $parameters = $policy->parameters->all();
+        $parameters['_policy_name'] = $policy->name;
+        $policy = $policy->with(parameters: $parameters);
     }
 
     /**
@@ -89,7 +91,7 @@ class LogMatchPolicyRouter extends AbstractAnalysis
         foreach ($this->queries[$query_key] as $search_phrase) {
             $keywords[] = sprintf(' "%s"', addslashes($search_phrase));
         }
-        $query .= '( '.implode(' or ', $keywords) . ' )'.PHP_EOL;
+        $query .= ' ( '.implode(' or ', $keywords) . ' )'.PHP_EOL;
         $query .= '| "" as policy_match'.PHP_EOL;
         $field = $this->getParameter('search_field');
         foreach ($this->queries[$query_key] as $policy => $search_phrase) {
@@ -99,8 +101,8 @@ class LogMatchPolicyRouter extends AbstractAnalysis
 
         $options = [];
 
-        $options['from']     = $this->getReportingPeriodStart()->format(\DateTime::ATOM);
-        $options['to']       = $this->getReportingPeriodEnd()->format(\DateTime::ATOM);
+        $options['from']     = $this->reportingPeriodStart->format(\DateTime::ATOM);
+        $options['to']       = $this->reportingPeriodEnd->format(\DateTime::ATOM);
         $options['timeZone'] = $this->getTimezone();
 
         $this->logger->debug($query);
@@ -127,7 +129,7 @@ class LogMatchPolicyRouter extends AbstractAnalysis
     protected function getTimezone():string
     {
 
-        $tz = $this->getReportingPeriodStart()->getTimeZone()->getName();
+        $tz = $this->reportingPeriodStart->getTimeZone()->getName();
 
         // SumoLogic requires a formal timezone. E.g. Pacific/Auckland.
         // If the timezone provided is in a short format (e.g. EST, NZST)
