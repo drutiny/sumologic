@@ -44,19 +44,19 @@ class LogMatchPolicyRouter extends AbstractAnalysis
         $this->addParameter(
             'search_field',
             AuditInterface::PARAMETER_REQUIRED,
-            'A search phrase to look for',
+            'The search field to check matches a given search phrase',
         );
         
         $this->addParameter(
             'search_phrase',
             AuditInterface::PARAMETER_REQUIRED,
-            'A search phrase to look for',
+            'The search phrase to match against',
         );
 
         $this->addParameter(
             'group_by',
             AuditInterface::PARAMETER_REQUIRED,
-            'A search phrase to look for',
+            'Additional fields to group by ontop of the search_phrase policy match.',
         );
 
         $this->addParameter(
