@@ -59,12 +59,6 @@ class LogMatchPolicyRouter extends AbstractAnalysis
             'Additional fields to group by ontop of the search_phrase policy match.',
         );
 
-        $this->addParameter(
-            '_policy_name',
-            AuditInterface::PARAMETER_OPTIONAL,
-            'Internal reference for policy name. Do not set in policy.',
-        );
-
         parent::configure();
     }
 
@@ -74,10 +68,6 @@ class LogMatchPolicyRouter extends AbstractAnalysis
     public function prepare(Policy $policy):void
     {
         $this->queries[$policy->parameters->get('query')][$policy->name] = $policy->parameters->get('search_phrase');
-        // Marker so we know what the policy is.
-        $parameters = $policy->parameters->all();
-        $parameters['_policy_name'] = $policy->name;
-        $policy = $policy->with(parameters: $parameters);
     }
 
     /**
@@ -95,7 +85,7 @@ class LogMatchPolicyRouter extends AbstractAnalysis
         $query .= '| "" as policy_match'.PHP_EOL;
         $field = $this->getParameter('search_field');
         foreach ($this->queries[$query_key] as $policy => $search_phrase) {
-            $query .= sprintf('| if ('.$field.' matches "%s", "%s", policy_match) as policy_match', addslashes($search_phrase), $policy).PHP_EOL;
+            $query .= sprintf('| if ('.$field.' matches "*%s*", "%s", policy_match) as policy_match', addslashes($search_phrase), $policy).PHP_EOL;
         }
         $query .= '| count, first('.$field.') as first_match by policy_match, ' . $this->getParameter('group_by');
 
@@ -119,7 +109,7 @@ class LogMatchPolicyRouter extends AbstractAnalysis
         });
 
         // Filter down to policy_match records.
-        $records = array_filter($records, fn($r) => $r['policy_match'] == $this->getParameter('_policy_name'));
+        $records = array_filter($records, fn($r) => $r['policy_match'] == $this->policy->name);
         $this->set('records', $records);
     }
 
