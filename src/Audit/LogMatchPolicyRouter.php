@@ -78,6 +78,14 @@ class LogMatchPolicyRouter extends AbstractAnalysis
     }
 
     /**
+     * Extract start of string up to wildcard for Sumo matching
+     */
+    protected function queryTruncateToWildcard($search_phrase) {
+        $search_escaped_quotes = $this->queryEscapeQuotes($search_phrase);
+        return preg_replace('/\*.*$/', '', $search_escaped_quotes);
+    }
+
+    /**
      * Surround query string with asterisks for matching, avoiding double quotes
      * and escaping quotes.
      */
@@ -96,7 +104,7 @@ class LogMatchPolicyRouter extends AbstractAnalysis
         $query = $this->interpolate($query_key);
         $keywords = [];
         foreach ($this->queries[$query_key] as $search_phrase) {
-            $keywords[] = sprintf(' "%s"', $this->queryEscapeQuotes($search_phrase));
+            $keywords[] = sprintf(' "%s"', $this->queryTruncateToWildcard($search_phrase));
         }
         $query .= ' ( '.implode(' or ', $keywords) . ' )'.PHP_EOL;
         $query .= '| "" as policy_match'.PHP_EOL;
