@@ -35,7 +35,7 @@ class LogMatchPolicyRouter extends AbstractAnalysis
      */
     public function configure():void
     {
-        
+
         $this->addParameter(
             'query',
             AuditInterface::PARAMETER_REQUIRED,
@@ -46,7 +46,7 @@ class LogMatchPolicyRouter extends AbstractAnalysis
             AuditInterface::PARAMETER_REQUIRED,
             'The search field to check matches a given search phrase',
         );
-        
+
         $this->addParameter(
             'search_phrase',
             AuditInterface::PARAMETER_REQUIRED,
@@ -71,6 +71,31 @@ class LogMatchPolicyRouter extends AbstractAnalysis
     }
 
     /**
+     * Prepare string to be within double-quoted Sumo query string.
+     */
+    protected function queryEscapeQuotes($search_phrase) {
+        return str_replace('"', '\"', $search_phrase);
+    }
+
+    /**
+     * Extract start of string up to wildcard for Sumo matching
+     */
+    protected function queryTruncateToWildcard($search_phrase) {
+        $search_escaped_quotes = $this->queryEscapeQuotes($search_phrase);
+        return preg_replace('/\*.*$/', '', $search_escaped_quotes);
+    }
+
+    /**
+     * Surround query string with asterisks for matching, avoiding double quotes
+     * and escaping quotes.
+     */
+    protected function queryAsteriskAndEscapeQuotes($search_phrase) {
+        $search_escaped_quotes = $this->queryEscapeQuotes($search_phrase);
+        return preg_replace("/\\*\\**/", "*", "*{$search_escaped_quotes}*");
+    }
+
+
+    /**
      * {@inheritdoc}
      */
     protected function gather(Sandbox $sandbox)
@@ -79,13 +104,17 @@ class LogMatchPolicyRouter extends AbstractAnalysis
         $query = $this->interpolate($query_key);
         $keywords = [];
         foreach ($this->queries[$query_key] as $search_phrase) {
-            $keywords[] = sprintf(' "%s"', addslashes($search_phrase));
+            $keywords[] = sprintf(' "%s"', $this->queryTruncateToWildcard($search_phrase));
         }
         $query .= ' ( '.implode(' or ', $keywords) . ' )'.PHP_EOL;
         $query .= '| "" as policy_match'.PHP_EOL;
         $field = $this->getParameter('search_field');
         foreach ($this->queries[$query_key] as $policy => $search_phrase) {
-            $query .= sprintf('| if ('.$field.' matches "*%s*", "%s", policy_match) as policy_match', addslashes($search_phrase), $policy).PHP_EOL;
+            $query .= sprintf(
+                '| if ('.$field.' matches "%s", "%s", policy_match) as policy_match',
+                $this->queryAsteriskAndEscapeQuotes($search_phrase),
+                $policy
+            ) . PHP_EOL;
         }
         $query .= '| count, first('.$field.') as first_match by policy_match, ' . $this->getParameter('group_by');
 
