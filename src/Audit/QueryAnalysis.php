@@ -56,6 +56,12 @@ class QueryAnalysis extends AbstractAnalysis
             'The timeZone the dates refer to.',
             null,
         );
+        $this->addParameter(
+            'globals',
+            AuditInterface::PARAMETER_OPTIONAL,
+            'string[] of global fields to extract from the resultset.',
+            [],
+        );
         parent::configure();
     }
 
@@ -92,9 +98,9 @@ class QueryAnalysis extends AbstractAnalysis
                     $record['_timeslice'] = date('Y-m-d H:i:s', $record['_timeslice']/1000);
                 }
             }
-            $this->set('records', $records);
             return $records;
         });
+        $this->set('records', $records);
 
         if (($globals = $this->getParameter('globals', [])) && $row = reset($records)) {
             foreach ($globals as $key) {
@@ -106,7 +112,7 @@ class QueryAnalysis extends AbstractAnalysis
     /**
      * Get the timeslice for a query.
      */
-    protected function getTimeslice():string {
+    public function getTimeslice():string {
         $steps = $this->getReportingPeriodSteps();
         return match (true) {
             $steps >= 86400 => round($steps / 86400) . 'd',
@@ -119,7 +125,7 @@ class QueryAnalysis extends AbstractAnalysis
     /**
      * Get the timezone.
      */
-    protected function getTimezone():string
+    public function getTimezone():string
     {
 
         $tz = $this->getReportingPeriodStart()->getTimeZone()->getName();
