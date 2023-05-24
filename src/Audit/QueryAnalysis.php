@@ -3,17 +3,22 @@
 namespace Drutiny\SumoLogic\Audit;
 
 use DateTimeZone;
+use Drutiny\Attribute\Parameter;
 use Drutiny\Attribute\UseService;
 use Drutiny\Audit\AbstractAnalysis;
-use Drutiny\Audit\AuditInterface;
 use Drutiny\Sandbox\Sandbox;
 use Drutiny\SumoLogic\Client;
 use Exception;
 
 /**
- *
+ * Analyse a search query response from SumoLogic.
  */
 #[UseService(Client::class, 'setApiClient')]
+#[Parameter(name: 'query', description: 'The sumologic query to send to the API', mode: Parameter::REQUIRED)]
+#[Parameter(name: 'from', description: 'The reporting date to start from. e.g. -24 hours')]
+#[Parameter(name: 'to', description: 'The reporting date to end on. e.g. now.')]
+#[Parameter(name: 'timezone', description: 'The timeZone the dates refer to.')]
+#[Parameter(name: 'globals', description: 'string[] of global fields to extract from the resultset.')]
 class QueryAnalysis extends AbstractAnalysis
 {
     protected Client $api;
@@ -29,45 +34,6 @@ class QueryAnalysis extends AbstractAnalysis
     /**
      * {@inheritdoc}
      */
-    public function configure():void
-    {
-        
-        $this->addParameter(
-            'query',
-            AuditInterface::PARAMETER_REQUIRED,
-            'The sumologic query to send to the API'
-        );
-        
-        $this->addParameter(
-            'from',
-            AuditInterface::PARAMETER_OPTIONAL,
-            'The reporting date to start from. e.g. -24 hours.',
-            null,
-        );
-        $this->addParameter(
-            'to',
-            AuditInterface::PARAMETER_OPTIONAL,
-            'The reporting date to end on. e.g. now.',
-            null
-        );
-        $this->addParameter(
-            'timezone',
-            AuditInterface::PARAMETER_OPTIONAL,
-            'The timeZone the dates refer to.',
-            null,
-        );
-        $this->addParameter(
-            'globals',
-            AuditInterface::PARAMETER_OPTIONAL,
-            'string[] of global fields to extract from the resultset.',
-            [],
-        );
-        parent::configure();
-    }
-
-    /**
-     * {@inheritdoc}
-     */
     protected function gather(Sandbox $sandbox)
     {
         $query = $this->interpolate($this->getParameter('query'), [
@@ -76,8 +42,8 @@ class QueryAnalysis extends AbstractAnalysis
 
         $options = [];
 
-        $options['from']     = $this->getReportingPeriodStart()->format(\DateTime::ATOM);
-        $options['to']       = $this->getReportingPeriodEnd()->format(\DateTime::ATOM);
+        $options['from']     = $this->reportingPeriodStart->format(\DateTime::ATOM);
+        $options['to']       = $this->reportingPeriodEnd->format(\DateTime::ATOM);
         $options['timeZone'] = $this->getTimezone();
 
         // Allow policy overrides of reporting period data.
@@ -127,8 +93,7 @@ class QueryAnalysis extends AbstractAnalysis
      */
     public function getTimezone():string
     {
-
-        $tz = $this->getReportingPeriodStart()->getTimeZone()->getName();
+        $tz = $this->reportingPeriodStart->getTimeZone()->getName();
 
         // SumoLogic requires a formal timezone. E.g. Pacific/Auckland.
         // If the timezone provided is in a short format (e.g. EST, NZST)

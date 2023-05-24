@@ -11,6 +11,7 @@ use Drutiny\Plugin\FieldType;
 use Drutiny\Settings;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\RequestOptions;
 use Psr\Log\LoggerInterface;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
@@ -198,5 +199,40 @@ class Client {
   public function deleteQuery($job_id)
   {
     return $this->client->request('DELETE', "search/jobs/$job_id");
+  }
+
+
+  /**
+   * Get Metrics data from SumoLogic
+   * 
+   * @param array[] $queries The actual query expressions.
+   * @param int $startTime Start of the query time range, in milliseconds since epoch.
+   * @param int $endTime End of the query time range, in milliseconds since epoch.
+   * @param int $requestedDataPoints Desired number of data points returned per series.
+   * @param int $maxTotalDataPoints Upper bound on sum total number of data points returned across all series.
+   * @param int $desiredQuantizationInSec Desired granularity of temporal quantization in seconds. 
+   *                                      Note that this may be overridden by the backend in order to satisfy 
+   *                                      constraints on the number of data points returned.
+   * @see https://help.sumologic.com/docs/api/metrics/
+   */
+  public function getMetricsQueries(array $queries, array $timeRange): array
+  {
+    //metrics/results
+    $json = array_filter([
+      'queries' => $queries,
+      'timeRange' => $timeRange,
+    ]);
+    $cid = hash('md5', http_build_query($json));
+
+    return $this->cache->get($cid, function (ItemInterface $item) use ($json) {
+      $item->expiresAfter(300);
+      $response = $this->client->request('POST','metricsQueries', [
+        RequestOptions::JSON => $json,
+      ]);
+      if (!$metrics = json_decode($response->getBody(), true)) {
+        throw new \Exception('Unable to decode response: ' . $response->getBody());
+      }
+      return $metrics;
+    });
   }
 }
