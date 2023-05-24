@@ -4,16 +4,13 @@ namespace Drutiny\SumoLogic\Audit;
 
 use DateTimeZone;
 use Drutiny\Attribute\Parameter;
-use Drutiny\Attribute\UseService;
 use Drutiny\Audit\AbstractAnalysis;
-use Drutiny\Sandbox\Sandbox;
 use Drutiny\SumoLogic\Client;
 use Exception;
 
 /**
  * Analyse a search query response from SumoLogic.
  */
-#[UseService(Client::class, 'setApiClient')]
 #[Parameter(name: 'query', description: 'The sumologic query to send to the API', mode: Parameter::REQUIRED)]
 #[Parameter(name: 'from', description: 'The reporting date to start from. e.g. -24 hours')]
 #[Parameter(name: 'to', description: 'The reporting date to end on. e.g. now.')]
@@ -21,20 +18,10 @@ use Exception;
 #[Parameter(name: 'globals', description: 'string[] of global fields to extract from the resultset.')]
 class QueryAnalysis extends AbstractAnalysis
 {
-    protected Client $api;
-
-    /**
-     * Set the Sumologic API Client to the audit class.
-     */
-    public function setApiClient(Client $api):void
-    {
-        $this->api = $api;
-    }
-
     /**
      * {@inheritdoc}
      */
-    protected function gather(Sandbox $sandbox)
+    protected function gather(Client $api):void
     {
         $query = $this->interpolate($this->getParameter('query'), [
             'timeslice' => $this->getTimeslice(),
@@ -58,7 +45,7 @@ class QueryAnalysis extends AbstractAnalysis
         }
         $this->logger->debug($query);
         $this->logger->notice("Waiting for SumoLogic query to return...");
-        $records = $this->api->query($query, $options, function ($records) {
+        $records = $api->query($query, $options, function ($records) {
             foreach ($records as &$record) {
                 if (isset($record['_timeslice'])) {
                     $record['_timeslice'] = date('Y-m-d H:i:s', $record['_timeslice']/1000);
