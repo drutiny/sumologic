@@ -3,84 +3,49 @@
 namespace Drutiny\SumoLogic\Audit;
 
 use DateTimeZone;
-use Drutiny\Attribute\UseService;
+use Drutiny\Attribute\Parameter;
+use Drutiny\Attribute\Type;
 use Drutiny\Audit\AbstractAnalysis;
-use Drutiny\Audit\AuditInterface;
 use Drutiny\Policy;
-use Drutiny\Sandbox\Sandbox;
 use Drutiny\SumoLogic\Client;
 use Exception;
-use SebastianBergmann\Type\VoidType;
 
 /**
  *
  */
-#[UseService(Client::class, 'setApiClient')]
+#[Parameter(name: 'query', mode: Parameter::REQUIRED, description: 'The base sumologic query to search on top of', type: Type::STRING)]
+#[Parameter(name: 'search_field', mode: Parameter::REQUIRED, description: 'The search field to check matches a given search phrase', type: Type::STRING)]
+#[Parameter(name: 'search_phrase', mode: Parameter::REQUIRED, description: 'The search phrase to match against', type: Type::STRING)]
+#[Parameter(name: 'group_by', mode: Parameter::REQUIRED, description: 'Additional fields to group by ontop of the search_phrase policy match.', type: Type::STRING)]
 class LogMatchPolicyRouter extends AbstractAnalysis
 {
-    protected Client $api;
-
     protected array $queries = [];
-
-    /**
-     * Set the Sumologic API Client to the audit class.
-     */
-    public function setApiClient(Client $api):void
-    {
-        $this->api = $api;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function configure():void
-    {
-
-        $this->addParameter(
-            'query',
-            AuditInterface::PARAMETER_REQUIRED,
-            'The base sumologic query to search on top of'
-        );
-        $this->addParameter(
-            'search_field',
-            AuditInterface::PARAMETER_REQUIRED,
-            'The search field to check matches a given search phrase',
-        );
-
-        $this->addParameter(
-            'search_phrase',
-            AuditInterface::PARAMETER_REQUIRED,
-            'The search phrase to match against',
-        );
-
-        $this->addParameter(
-            'group_by',
-            AuditInterface::PARAMETER_REQUIRED,
-            'Additional fields to group by ontop of the search_phrase policy match.',
-        );
-
-        parent::configure();
-    }
+    protected array $groups = [];
 
     /**
      * {@inheritdoc}
      */
     public function prepare(Policy $policy):void
     {
-        $this->queries[$policy->parameters->get('query')][$policy->name] = $policy->parameters->get('search_phrase');
+        $policy = $this->prepareBuildParameters($policy);
+        $key = $policy->parameters->get('query') . $policy->parameters->get('search_field');
+        $this->queries[$key][$policy->name] = $policy->parameters->get('search_phrase');
+        if (!in_array($policy->parameters->get('group_by'), $this->groups)) {
+            $this->groups[] = $policy->parameters->get('group_by');
+        }
     }
 
     /**
      * Prepare string to be within double-quoted Sumo query string.
      */
-    protected function queryEscapeQuotes($search_phrase) {
+    protected function queryEscapeQuotes(string $search_phrase):string {
         return str_replace('"', '\"', $search_phrase);
     }
 
     /**
      * Extract start of string up to wildcard for Sumo matching
      */
-    protected function queryTruncateToWildcard($search_phrase) {
+    protected function queryTruncateToWildcard(string $search_phrase):string {
         $search_escaped_quotes = $this->queryEscapeQuotes($search_phrase);
         return preg_replace('/\*.*$/', '', $search_escaped_quotes);
     }
@@ -89,34 +54,36 @@ class LogMatchPolicyRouter extends AbstractAnalysis
      * Surround query string with asterisks for matching, avoiding double quotes
      * and escaping quotes.
      */
-    protected function queryAsteriskAndEscapeQuotes($search_phrase) {
+    protected function queryAsteriskAndEscapeQuotes(string $search_phrase):string {
         $search_escaped_quotes = $this->queryEscapeQuotes($search_phrase);
         return preg_replace("/\\*\\**/", "*", "*{$search_escaped_quotes}*");
     }
 
-
     /**
      * {@inheritdoc}
      */
-    protected function gather(Sandbox $sandbox)
+    protected function gather(Client $api)
     {
-        $query_key = $this->getParameter('query');
-        $query = $this->interpolate($query_key);
+        $query_key = $this->getParameter('query') . $this->getParameter('search_field');
+        $query = [$this->interpolate($this->getParameter('query'))];
         $keywords = [];
         foreach ($this->queries[$query_key] as $search_phrase) {
             $keywords[] = sprintf(' "%s"', $this->queryTruncateToWildcard($search_phrase));
         }
-        $query .= ' ( '.implode(' or ', $keywords) . ' )'.PHP_EOL;
-        $query .= '| "" as policy_match'.PHP_EOL;
+        $query[] = ' ( '.implode(' or ', $keywords) . ' )';
+        $query[] = '| "" as policy_match';
         $field = $this->getParameter('search_field');
         foreach ($this->queries[$query_key] as $policy => $search_phrase) {
-            $query .= sprintf(
+            $query[] = sprintf(
                 '| if ('.$field.' matches "%s", "%s", policy_match) as policy_match',
                 $this->queryAsteriskAndEscapeQuotes($search_phrase),
                 $policy
-            ) . PHP_EOL;
+            );
         }
-        $query .= '| count, first('.$field.') as first_match by policy_match, ' . $this->getParameter('group_by');
+        $query[] = '| count, first('.$field.') as first_match by policy_match, ' . implode(', ', $this->groups);
+
+        // Combine query fragments.
+        $query = implode(PHP_EOL, $query);
 
         $options = [];
 
@@ -128,7 +95,7 @@ class LogMatchPolicyRouter extends AbstractAnalysis
         $this->logger->notice("Waiting for SumoLogic query to return...");
 
         // Get cached records.
-        $records = $this->api->query($query, $options, function ($records) {
+        $records = $api->query($query, $options, function ($records) {
             foreach ($records as &$record) {
                 if (isset($record['_timeslice'])) {
                     $record['_timeslice'] = date('Y-m-d H:i:s', $record['_timeslice']/1000);
