@@ -68,10 +68,10 @@ trait SearchTrait
 
         $client = $this->container->get('sumologic.api');
 
-        $options['from']     = $this->getParameter('reporting_period_start')->format(\DateTime::ATOM);
-        $options['to']       = $this->getParameter('reporting_period_end')->format(\DateTime::ATOM);
+        $options['from']     = $this->reportingPeriodStart->format(\DateTime::ATOM);
+        $options['to']       = $this->reportingPeriodEnd->format(\DateTime::ATOM);
 
-        $tz = $this->getParameter('reporting_period_start')->getTimeZone()->getName();
+        $tz = $this->reportingPeriodStart->getTimeZone()->getName();
 
         // SumoLogic requires a formal timezone. E.g. Pacific/Auckland.
         // If the timezone provided is in a short format (e.g. EST, NZST)
