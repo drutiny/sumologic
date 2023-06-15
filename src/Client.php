@@ -228,6 +228,7 @@ class Client {
       $item->expiresAfter(300);
       $response = $this->client->request('POST','metricsQueries', [
         RequestOptions::JSON => $json,
+        RequestOptions::TIMEOUT => 30
       ]);
       if (!$metrics = json_decode($response->getBody(), true)) {
         throw new \Exception('Unable to decode response: ' . $response->getBody());
