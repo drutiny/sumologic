@@ -13,3 +13,6 @@ services:
     # Legacy access
     sumologic.api:
         class: 'Drutiny\SumoLogic\Client'
+
+    Drutiny\SumoLogic\EventSubscriber:
+        tags: [kernel.event_subscriber]
