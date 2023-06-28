@@ -55,9 +55,10 @@ class QueryAnalysis extends AbstractAnalysis
         });
         $this->set('records', $records);
 
-        if (($globals = $this->getParameter('globals', [])) && $row = reset($records)) {
+        if ($globals = $this->getParameter('globals', [])) {
+            $row = reset($records) ?: [];
             foreach ($globals as $key) {
-                $this->set($key, $row[$key]);
+                $this->set($key, $row[$key] ?? null);
             }
         }
     }
