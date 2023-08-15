@@ -11,7 +11,11 @@ use Drutiny\Plugin\FieldType;
 use Drutiny\Settings;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
 use GuzzleHttp\RequestOptions;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
@@ -37,6 +41,7 @@ use Symfony\Component\Console\Helper\ProgressBar;
 class Client {
 
   const QUERY_JOB_RECORDS_LIMIT = 10000;
+  const RATE_LIMIT_EXCEEDED = 429;
 
   protected int $maxJobWait = 200;
   protected int $pollWait = 5;
@@ -56,6 +61,12 @@ class Client {
   {
     $this->maxJobWait = $settings->get('sumologic.max_job_wait');
     $this->pollWait = $settings->get('sumologic.poll_wait');
+
+    $handler = HandlerStack::create();
+    $handler->push(Middleware::retry(
+      fn($retries, $req, $resp) => $this->retryRequest($retries, $req, $resp)
+    ));
+
     $this->client = $http->create([
       'cookies' => new CookieJar(),
       'headers' => [
@@ -69,8 +80,24 @@ class Client {
       'auth' => [
         $plugin->access_id, $plugin->access_key
       ],
-      'base_uri' => $plugin->endpoint
+      'base_uri' => $plugin->endpoint,
+      'handler' => $handler
     ]);
+  }
+
+  /**
+   * Retry requests when API limits are exceeded.
+   * 
+   * Guzzle will exponentially delay the retries so we should be able to
+   * eventually succeed when the request rate or concurrency subsides.
+   * 
+   * @see https://help.sumologic.com/docs/api/getting-started/#rate-limiting
+   */
+  public function retryRequest(int $retries, RequestInterface $request, ResponseInterface $response = null, $reason = null) {
+    if ($response === null) {
+      return false;
+    }
+    return $response->getStatusCode() == static::RATE_LIMIT_EXCEEDED;
   }
 
   public function query(string $search_query, array $options = [], callable $callback = null):array
