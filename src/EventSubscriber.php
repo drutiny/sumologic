@@ -3,6 +3,7 @@
 namespace Drutiny\SumoLogic;
 
 use Drutiny\AuditResponse\AuditResponse;
+use Drutiny\Console\Helper\User;
 use Drutiny\Report\Report;
 use Drutiny\Settings;
 use GuzzleHttp\Client;
@@ -16,7 +17,7 @@ class EventSubscriber implements EventSubscriberInterface {
      */
     private array $logs;
 
-    public function __construct(protected Settings $settings)
+    public function __construct(protected Settings $settings, protected User $user)
     {
         
     }
@@ -50,7 +51,8 @@ class EventSubscriber implements EventSubscriberInterface {
             start: $report->reportingPeriodStart->format('c'),
             end: $report->reportingPeriodEnd->format('c'),
             version: $this->settings->get('version'),
-            timing: $report->timing
+            timing: $report->timing,
+            user: $this->user->getIdentity()
         );
 
         foreach ($report->results as $response) {
@@ -62,7 +64,8 @@ class EventSubscriber implements EventSubscriberInterface {
                 name: $response->policy->name,
                 serverity: $response->getSeverity(),
                 status: $response->state->name,
-                timing: $response->timing
+                timing: $response->timing,
+                user: $this->user->getIdentity()
             );
         }
     }
@@ -86,7 +89,7 @@ class EventSubscriber implements EventSubscriberInterface {
                 continue;
             }
             
-            $client->post($this->settings->get('sumologic.stats.collector'), [
+            $response = $client->post($this->settings->get('sumologic.stats.collector'), [
                 RequestOptions::BODY => implode(PHP_EOL, $payload),
                 RequestOptions::HEADERS => [
                     'X-Sumo-Name' => $this->settings->get('name'),
@@ -94,7 +97,5 @@ class EventSubscriber implements EventSubscriberInterface {
                 ]
             ]);
         }
-
-        
     }
 }
