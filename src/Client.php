@@ -76,7 +76,7 @@ class Client {
       ],
       'allow_redirects' => FALSE,
       'connect_timeout' => 5,
-      'timeout' => 5,
+      'timeout' => 10,
       'auth' => [
         $plugin->access_id, $plugin->access_key
       ],
