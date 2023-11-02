@@ -25,7 +25,7 @@ class LogMatchPolicyRouter extends AbstractAnalysis
     /**
      * {@inheritdoc}
      */
-    public function prepare(Policy $policy):void
+    public function prepare(Policy $policy):?string
     {
         $policy = $this->prepareBuildParameters($policy);
         $key = $policy->parameters->get('query') . $policy->parameters->get('search_field');
@@ -33,6 +33,7 @@ class LogMatchPolicyRouter extends AbstractAnalysis
         if (!in_array($policy->parameters->get('group_by'), $this->groups)) {
             $this->groups[] = $policy->parameters->get('group_by');
         }
+        return $key;
     }
 
     /**
