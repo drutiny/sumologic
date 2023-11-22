@@ -5,6 +5,7 @@ namespace Drutiny\SumoLogic\Audit;
 use DateTimeZone;
 use Drutiny\Attribute\Parameter;
 use Drutiny\Audit\AbstractAnalysis;
+use Drutiny\Policy;
 use Drutiny\SumoLogic\Client;
 use Exception;
 
@@ -18,6 +19,14 @@ use Exception;
 #[Parameter(name: 'globals', description: 'string[] of global fields to extract from the resultset.')]
 class QueryAnalysis extends AbstractAnalysis
 {
+
+    public function prepare(Policy $policy): ?string
+    {
+        return $this->interpolate($this->policy->parameters['query'], [
+            'timeslice' => $this->getTimeslice(),
+        ]);
+    }
+
     /**
      * {@inheritdoc}
      */
