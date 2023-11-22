@@ -6,6 +6,7 @@ use Drutiny\AuditResponse\AuditResponse;
 use Drutiny\Console\Helper\User;
 use Drutiny\Report\Report;
 use Drutiny\Settings;
+use Drutiny\Target\NullTarget;
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
@@ -31,6 +32,10 @@ class EventSubscriber implements EventSubscriberInterface {
 
     public function logReportCreate(Report $report):void {
         if (!$this->settings->has('sumologic.stats.collector')) {
+            return;
+        }
+        // We're not going to log analytics on null targets.
+        if ($report->target instanceof NullTarget) {
             return;
         }
         $this->collectLog(
