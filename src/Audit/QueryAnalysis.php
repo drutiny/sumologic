@@ -22,7 +22,7 @@ class QueryAnalysis extends AbstractAnalysis
 
     public function prepare(Policy $policy): ?string
     {
-        return $this->interpolate($this->policy->parameters['query'], [
+        return $this->interpolate($policy->parameters->get('query'), [
             'timeslice' => $this->getTimeslice(),
         ]);
     }
