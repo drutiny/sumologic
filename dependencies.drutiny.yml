@@ -1,0 +1,63 @@
+Sumologic:
+  extract_series:
+    description: Extract the series data from the a given row of metrics data.
+    expression: |
+      (metrics.queryResult|filter(r => r.rowId == row_id)|first).timeSeriesList.timeSeries
+    arguments:
+      - metrics
+      - row_id
+    return: array
+  extract_timeseries:
+    description: Extract the timeseries data from the a given row of metrics data. 
+    expression: |
+      Sumologic.extract_series(metrics, row_id)
+      | map(p => p.points.timestamps)
+      | reduce((carry, v) => carry|merge(v), [])
+      | sort 
+      | unique
+    arguments:
+      - metrics
+      - row_id
+    return: array
+  extract_padded_y_values:
+    description: Extract the value data from a given row of metrics data and pad results to match timeseries.
+    arguments:
+      - metrics
+      - row_id
+    expression: |
+      Sumologic.extract_series(metrics, row_id)
+      | map(group =>
+        Sumologic.extract_timeseries(metrics, row_id)
+        | map(
+          x => group.points.timestamps | map((v, k) => v is same as(x) ? k : false ) | filter(v => v is not same as(false))
+        )
+        | map(v => v|length > 0 ? group.points.values[v|first] : 0)
+      )
+    return: array
+  extract_group_names:
+    description: Get the y-value group names (headers) of a series of data.
+    arguments:
+      - metrics
+      - row_id
+      - dimension
+    expression: Sumologic.extract_series(metrics, row_id)|map(s => s.metricDefinition.dimensions[dimension])
+    return: array
+  grouped_metrics_to_chart_table:
+    description: Parse the metrics data and output the data table and chart.
+    arguments:
+      - metrics
+      - row_id
+      - header_dimension
+      - chartObj
+    expression: |
+      chart_and_table(
+        ["Timestamp"] | merge(Sumologic.extract_group_names(metrics, row_id, header_dimension)),
+        # For each timestamp, merge the values as rows.
+        Sumologic.extract_timeseries(metrics, row_id)
+          | map((x, i) => [(x/1000)|date('Y-m-d H:i:s')]
+            | merge(
+              Sumologic.extract_padded_y_values(metrics, row_id)| map(y => y[i])
+            )
+          ),
+      chartObj)
+    return: string
