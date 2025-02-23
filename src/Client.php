@@ -93,14 +93,14 @@ class Client {
    * 
    * @see https://help.sumologic.com/docs/api/getting-started/#rate-limiting
    */
-  public function retryRequest(int $retries, RequestInterface $request, ResponseInterface $response = null, $reason = null) {
+  protected function retryRequest(int $retries, RequestInterface $request, ?ResponseInterface $response = null) {
     if ($response === null) {
       return false;
     }
     return $response->getStatusCode() == static::RATE_LIMIT_EXCEEDED;
   }
 
-  public function query(string $search_query, array $options = [], callable $callback = null):array
+  public function query(string $search_query, array $options = [], ?callable $callback = null):array
   {
     $json = [
       'from' => (new DateTime('-24 hours'))->format(DateTime::ATOM),
