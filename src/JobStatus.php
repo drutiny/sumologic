@@ -19,6 +19,7 @@ enum JobStatus {
             'GATHERING RESULTS'	                => JobStatus::JOB_IN_PROGRESS,
             'GATHERING RESULTS FROM SUBQUERIES' => JobStatus::JOB_IN_PROGRESS,
             'DONE GATHERING RESULTS'	        => JobStatus::COMPLETE,
+            'DONE GATHERING HISTOGRAM'          => JobStatus::COMPLETE,
             'CANCELED'	                        => JobStatus::JOB_CANCELLED,
             default => throw new RuntimeException("So such status: $status")
         };
